@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>DAN FIT - Dan Fit</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; max-width: 500px; margin: 40px auto; background: #f4f7f6; padding: 20px; }
+        .card { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .hidden { display: none; }
+        input, select, button { width: 100%; padding: 12px; margin-top: 10px; border-radius: 6px; border: 1px solid #ddd; box-sizing: border-box; }
+        button { background: #27ae60; color: white; border: none; font-weight: bold; cursor: pointer; }
+        .btn-link { background: none; color: #2980b9; text-decoration: underline; font-size: 14px; border: none; }
+        .resultado { background: #e8f4fd; padding: 15px; margin-top: 20px; border-left: 5px solid #2980b9; border-radius: 8px; }
+        ul { list-style: none; padding: 0; margin-top: 20px; }
+        li { background: #fff; padding: 10px; border-bottom: 1px solid #eee; font-size: 13px; }
+    </style>
+</head>
+<body>
+
+<div class="card" id="tela-auth">
+    <h2 id="auth-titulo">Login - DAN FIT</h2>
+    <input type="email" id="auth-email" placeholder="Email">
+    <input type="password" id="auth-senha" placeholder="Senha">
+    <button type="button" onclick="autenticar()">Confirmar</button>
+    <button type="button" class="btn-link" onclick="alternarAuth()">Criar conta / Login</button>
+</div>
+
+<div class="card hidden" id="tela-app">
+    <h2>Avaliação Física (RF05)</h2>
+    <label>Peso (kg):</label>
+    <input type="text" id="peso" placeholder="Ex: 75.5">
+    <label>Altura (m):</label>
+    <input type="text" id="altura" placeholder="Ex: 1.73">
+    <label>Objetivo (RF04):</label>
+    <select id="objetivo">
+        <option value="Ganho de Massa">Ganho de Massa</option>
+        <option value="Perda de Peso">Perda de Peso</option>
+    </select>
+    <button type="button" onclick="enviarDados(event)">Gerar Plano</button>
+
+    <div id="resultado" class="resultado hidden">
+        <p><strong>IMC:</strong> <span id="res-imc"></span></p>
+        <p><strong>Status:</strong> <span id="res-class"></span></p>
+    </div>
+
+    <h3>Histórico (RF13)</h3>
+    <ul id="lista-historico"></ul>
+</div>
+
+<script>
+    let usuarioId = null;
+    let modoCadastro = false;
+
+    function alternarAuth() {
+        modoCadastro = !modoCadastro;
+        document.getElementById('auth-titulo').innerText = modoCadastro ? "Cadastro" : "Login";
+    }
+
+    async function autenticar() {
+        const email = document.getElementById('auth-email').value;
+        const senha = document.getElementById('auth-senha').value;
+        const rota = modoCadastro ? '/cadastrar' : '/login';
+        
+        const res = await fetch(`http://127.0.0.1:5000${rota}`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ email, senha })
+        });
+        const data = await res.json();
+        if (res.ok) {
+            if (modoCadastro) { alert("Cadastrado! Faça login."); alternarAuth(); }
+            else { 
+                usuarioId = data.id;
+                document.getElementById('tela-auth').classList.add('hidden');
+                document.getElementById('tela-app').classList.remove('hidden');
+                carregarHistorico();
+            }
+        } else { alert(data.message); }
+    }
+
+    async function enviarDados(e) {
+        e.preventDefault();
+        const res = await fetch('http://127.0.0.1:5000/calcular-plano', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                usuario_id: usuarioId,
+                peso: document.getElementById('peso').value,
+                altura: document.getElementById('altura').value,
+                objetivo: document.getElementById('objetivo').value
+            })
+        });
+        const result = await res.json();
+        if (res.ok) {
+            document.getElementById('res-imc').innerText = result.imc;
+            document.getElementById('res-class').innerText = result.classificacao;
+            document.getElementById('resultado').classList.remove('hidden');
+            carregarHistorico();
+        } else { alert(result.message); }
+    }
+
+    async function carregarHistorico() {
+        const res = await fetch(`http://127.0.0.1:5000/historico/${usuarioId}`);
+        const dados = await res.json();
+        document.getElementById('lista-historico').innerHTML = dados.map(i => 
+            `<li>${i[3].substring(0,10)}: IMC ${i[1]} (${i[2]})</li>`
+        ).join('');
+    }
+</script>
+</body>
+</html>
